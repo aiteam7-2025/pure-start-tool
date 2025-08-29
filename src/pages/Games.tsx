@@ -140,7 +140,7 @@ const Games: React.FC = () => {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold">Games</h1>
         <p className="text-muted-foreground">
-          Choose from our collection of skill-based mini-games. Each game offers multiple difficulty levels to challenge players of all skill levels.
+          Choose from our collection of precision-based TimeiT games. Each game offers multiple difficulty levels to challenge your timing and accuracy skills.
         </p>
       </div>
 

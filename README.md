@@ -1,8 +1,8 @@
-# Game Platform - Web Application
+# TimeiT - Precision Gaming Platform - Web Application
 
 A complete web-based game platform featuring multiple mini-games, user authentication, leaderboards, and social features.
 
-## Features
+## 🎯 TimeiT Features
 
 ### 🎮 Mini-Games
 - **Line Drop**: Stop a falling line precisely on target
@@ -28,7 +28,7 @@ A complete web-based game platform featuring multiple mini-games, user authentic
 - Dark/light theme support
 - Modern component library (shadcn/ui)
 
-## Technology Stack
+## 🚀 Technology Stack
 
 ### Frontend
 - **React 18** with TypeScript
@@ -82,7 +82,7 @@ A complete web-based game platform featuring multiple mini-games, user authentic
 └── README.md                    # This file
 ```
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 18+ and npm/yarn
@@ -188,7 +188,7 @@ A complete web-based game platform featuring multiple mini-games, user authentic
 - Time-based scoring
 - New puzzle every day
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -196,10 +196,10 @@ A complete web-based game platform featuring multiple mini-games, user authentic
 4. Add tests if applicable
 5. Submit a pull request
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License.
 
-## Support
+## 💬 Support
 
 For support or questions, please open an issue in the repository.

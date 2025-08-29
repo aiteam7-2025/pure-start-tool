@@ -1,4 +1,4 @@
-# Game Platform Setup Guide
+# TimeiT - Precision Gaming Platform Setup Guide
 
 ## Prerequisites
 
@@ -73,7 +73,7 @@ The frontend will automatically connect to `http://localhost:5000` for the backe
 - For local MongoDB: Make sure MongoDB service is running
 - For MongoDB Atlas: Check your connection string and network access
 
-## Features Available
+## 🎯 TimeiT Features Available
 
 ✅ **Authentication System** - User registration and login
 ✅ **4 Mini-Games** - Line Drop, Circle Stop, Gravity Tic-Tac-Toe, Word Sprint
@@ -82,13 +82,13 @@ The frontend will automatically connect to `http://localhost:5000` for the backe
 ✅ **Airtable Integration** - External data storage and management
 ✅ **Responsive UI** - Works on desktop and mobile
 
-## Development
+## 🚀 Development
 
 - **Frontend**: React + TypeScript + Vite
 - **Backend**: Node.js + Express + MongoDB
 - **UI Components**: shadcn/ui + Tailwind CSS
 
-## Support
+## 💬 Support
 
 If you encounter issues:
 1. Check the console for error messages

@@ -117,7 +117,7 @@ const Dashboard: React.FC = () => {
               Welcome back, {user.username}! 👋
             </h1>
             <p className="text-muted-foreground mt-2">
-              Ready to beat your high scores? Let's play some games!
+              Ready to test your precision and timing? Let's play some TimeiT games!
             </p>
           </div>
           <div className="hidden md:flex items-center space-x-4">

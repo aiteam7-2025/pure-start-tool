@@ -68,8 +68,8 @@ const Layout: React.FC = () => {
             <Gamepad2 className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">GameHub</h1>
-            <p className="text-sm text-muted-foreground">Play & Compete</p>
+            <h1 className="text-xl font-bold text-foreground">TimeiT</h1>
+            <p className="text-sm text-muted-foreground">Precision & Timing</p>
           </div>
         </div>
 
@@ -138,7 +138,7 @@ const Layout: React.FC = () => {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Gamepad2 className="w-5 h-5 text-primary-foreground" />
             </div>
-            <h1 className="text-lg font-bold">GameHub</h1>
+            <h1 className="text-lg font-bold">TimeiT</h1>
           </div>
 
           <div className="flex items-center space-x-2">
