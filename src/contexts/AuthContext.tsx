@@ -1,63 +1,19 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-
-interface User {
-  _id: string;
-  email: string;
-  username: string;
-  avatar?: string;
-  stats: {
-    totalGamesPlayed: number;
-    totalScore: number;
-    averageScore: number;
-    bestScore: number;
-    gamesWon: number;
-  };
-  gameStats: {
-    lineDrop: {
-      bestScore: number;
-      gamesPlayed: number;
-      totalScore: number;
-    };
-    circleStop: {
-      bestScore: number;
-      gamesPlayed: number;
-      totalScore: number;
-    };
-    gravityTicTacToe: {
-      bestScore: number;
-      gamesPlayed: number;
-      totalScore: number;
-      gamesWon: number;
-    };
-    wordSprint: {
-      bestScore: number;
-      gamesPlayed: number;
-      totalScore: number;
-      wordsSolved: number;
-    };
-  };
-  preferences: {
-    theme: 'light' | 'dark' | 'auto';
-    soundEnabled: boolean;
-    notifications: boolean;
-  };
-  isOnline: boolean;
-  lastSeen: string;
-}
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
-  login: (identifier: string, password: string) => Promise<void>;
-  register: (email: string, password: string, username: string, phone?: string) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUser: (updates: Partial<User>) => void;
+  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateProfile: (updates: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -67,145 +23,103 @@ export const useAuth = () => {
   return context;
 };
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check for existing token on mount
   useEffect(() => {
-    const token = localStorage.getItem('gameToken');
-    if (token) {
-      fetchUserProfile(token);
-    } else {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
       setLoading(false);
-    }
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = async (token: string) => {
+  const signUp = async (email: string, password: string, username: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        // Token is invalid, remove it
-        localStorage.removeItem('gameToken');
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      localStorage.removeItem('gameToken');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async (identifier: string, password: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ identifier, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
-
-      // Store token and user data
-      localStorage.setItem('gameToken', data.token);
-      setUser(data.user);
-      
-      toast.success('Login successful!');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
-      toast.error(message);
-      throw error;
-    }
-  };
-
-  const register = async (email: string, password: string, username: string, phone?: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, username, phone }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
-      }
-
-      // Store token and user data
-      localStorage.setItem('gameToken', data.token);
-      setUser(data.user);
-      
-      toast.success('Registration successful! Welcome to the game platform!');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Registration failed';
-      toast.error(message);
-      throw error;
-    }
-  };
-
-  const logout = async () => {
-    try {
-      const token = localStorage.getItem('gameToken');
-      if (token) {
-        // Call logout endpoint
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
           },
-        });
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // Clear local state regardless of API call success
-      localStorage.removeItem('gameToken');
-      setUser(null);
-      toast.success('Logged out successfully');
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success('Check your email for the confirmation link!');
+    } catch (error: any) {
+      toast.error(error.message || 'Error signing up');
+      throw error;
     }
   };
 
-  const updateUser = (updates: Partial<User>) => {
-    if (user) {
-      setUser({ ...user, ...updates });
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      toast.success('Signed in successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Error signing in');
+      throw error;
     }
   };
 
-  const value: AuthContextType = {
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success('Signed out successfully!');
+    } catch (error: any) {
+      toast.error('Error signing out');
+      throw error;
+    }
+  };
+
+  const updateProfile = async (updates: Partial<User>) => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: updates,
+      });
+
+      if (error) throw error;
+
+      toast.success('Profile updated successfully!');
+    } catch (error: any) {
+      toast.error('Error updating profile');
+      throw error;
+    }
+  };
+
+  const value = {
     user,
+    session,
     loading,
-    login,
-    register,
-    logout,
-    updateUser,
+    signUp,
+    signIn,
+    signOut,
+    updateProfile,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

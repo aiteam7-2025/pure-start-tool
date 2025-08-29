@@ -35,11 +35,10 @@ import {
   Settings,
   Bell,
   Search,
-  Database,
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,11 +49,10 @@ const Layout: React.FC = () => {
     { name: 'Games', href: '/games', icon: Gamepad2 },
     { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
     { name: 'Profile', href: '/profile', icon: User },
-    { name: 'Airtable', href: '/airtable', icon: Database },
   ];
 
   const handleLogout = async () => {
-    await logout();
+    await signOut();
     navigate('/login');
   };
 
@@ -96,24 +94,21 @@ const Layout: React.FC = () => {
 
         <Separator className="my-6" />
 
-        {/* User Stats Summary */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground">Quick Stats</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Total Score</span>
-              <span className="font-medium">{user?.stats.totalScore.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Games Played</span>
-              <span className="font-medium">{user?.stats.totalGamesPlayed}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Best Score</span>
-              <span className="font-medium">{user?.stats.bestScore.toLocaleString()}</span>
+        {/* User Info */}
+        {user && (
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.username} />
+                <AvatarFallback>{user.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="text-sm font-medium">{user.user_metadata?.username || 'User'}</div>
+                <div className="text-xs text-muted-foreground">{user.email}</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -149,15 +144,15 @@ const Layout: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatar} alt={user?.username} />
-                    <AvatarFallback>{user?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.user_metadata?.username} />
+                    <AvatarFallback>{user?.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user?.username}</p>
+                    <p className="text-sm font-medium leading-none">{user?.user_metadata?.username || 'User'}</p>
                     <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                   </div>
                 </DropdownMenuLabel>
@@ -250,13 +245,13 @@ const Layout: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-auto rounded-lg px-3">
                     <Avatar className="h-8 w-8 mr-2">
-                      <AvatarImage src={user?.avatar} alt={user?.username} />
-                      <AvatarFallback>{user?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.user_metadata?.username} />
+                      <AvatarFallback>{user?.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium">{user?.username}</span>
+                      <span className="text-sm font-medium">{user?.user_metadata?.username || 'User'}</span>
                       <span className="text-xs text-muted-foreground">
-                        Score: {user?.stats.totalScore.toLocaleString()}
+                        {user?.email}
                       </span>
                     </div>
                   </Button>
@@ -264,7 +259,7 @@ const Layout: React.FC = () => {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.username}</p>
+                      <p className="text-sm font-medium leading-none">{user?.user_metadata?.username || 'User'}</p>
                       <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
