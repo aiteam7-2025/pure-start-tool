@@ -1,20 +1,8 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
-import GameRunner from './pages/GameRunner';
+import SimpleGameRunner from './pages/SimpleGameRunner';
 import NotFound from './pages/NotFound';
-
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
-    },
-  },
-});
 
 function AppRoutes() {
   return (
@@ -22,8 +10,8 @@ function AppRoutes() {
       <Routes>
         {/* Main game route */}
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/play" replace />} />
-          <Route path="play" element={<GameRunner />} />
+          <Route index element={<SimpleGameRunner />} />
+          <Route path="play" element={<SimpleGameRunner />} />
         </Route>
         
         {/* 404 route */}
@@ -35,12 +23,9 @@ function AppRoutes() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AppRoutes />
-        <Toaster position="top-right" richColors />
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <AppRoutes />
+    </ThemeProvider>
   );
 }
 
