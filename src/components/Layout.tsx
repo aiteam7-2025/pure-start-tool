@@ -1,19 +1,9 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from './ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 import {
   Sheet,
   SheetContent,
@@ -22,39 +12,22 @@ import {
   SheetTrigger,
 } from './ui/sheet';
 import {
-  Home,
   Gamepad2,
-  Trophy,
-  User,
   Menu,
-  X,
   Sun,
   Moon,
   Monitor,
-  LogOut,
-  Settings,
-  Bell,
-  Search,
+  Play,
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
-  const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
-  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: Home },
-    { name: 'Games', href: '/games', icon: Gamepad2 },
-    { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
-    { name: 'Profile', href: '/profile', icon: User },
+    { name: 'Play Games', href: '/play', icon: Play },
   ];
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
-  };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -94,21 +67,15 @@ const Layout: React.FC = () => {
 
         <Separator className="my-6" />
 
-        {/* User Info */}
-        {user && (
-          <div className="space-y-3">
-            <div className="flex items-center space-x-3">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.username} />
-                <AvatarFallback>{user.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="text-sm font-medium">{user.user_metadata?.username || 'User'}</div>
-                <div className="text-xs text-muted-foreground">{user.email}</div>
-              </div>
+        {/* Welcome Message */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-muted-foreground">Welcome to TimeiT!</h3>
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">
+              Click "Play Games" to start your precision gaming journey!
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -137,41 +104,14 @@ const Layout: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="icon">
-              <Bell className="w-5 h-5" />
+            {/* Theme Toggle */}
+            <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+              {theme === 'light' ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.user_metadata?.username} />
-                    <AvatarFallback>{user?.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user?.user_metadata?.username || 'User'}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/profile')}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -188,97 +128,21 @@ const Layout: React.FC = () => {
           <header className="hidden lg:flex items-center justify-between p-6 border-b border-border bg-background">
             <div className="flex items-center space-x-4">
               <h2 className="text-2xl font-bold text-foreground">
-                {navigation.find(item => isActive(item.href))?.name || 'Dashboard'}
+                {navigation.find(item => isActive(item.href))?.name || 'TimeiT'}
               </h2>
             </div>
 
             <div className="flex items-center space-x-4">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search games, users..."
-                  className="pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-
               {/* Theme Toggle */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    {theme === 'light' ? (
-                      <Sun className="w-5 h-5" />
-                    ) : theme === 'dark' ? (
-                      <Moon className="w-5 h-5" />
-                    ) : (
-                      <Monitor className="w-5 h-5" />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setTheme('light')}>
-                    <Sun className="mr-2 h-4 w-4" />
-                    Light
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme('dark')}>
-                    <Moon className="mr-2 h-4 w-4" />
-                    Dark
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme('auto')}>
-                    <Monitor className="mr-2 h-4 w-4" />
-                    Auto
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="w-5 h-5" />
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">
-                  3
-                </Badge>
+              <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+                {theme === 'light' ? (
+                  <Sun className="w-5 h-5" />
+                ) : theme === 'dark' ? (
+                  <Moon className="w-5 h-5" />
+                ) : (
+                  <Monitor className="w-5 h-5" />
+                )}
               </Button>
-
-              {/* User Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-auto rounded-lg px-3">
-                    <Avatar className="h-8 w-8 mr-2">
-                      <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.user_metadata?.username} />
-                      <AvatarFallback>{user?.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium">{user?.user_metadata?.username || 'User'}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {user?.email}
-                      </span>
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.user_metadata?.username || 'User'}</p>
-                      <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
-                    <User className="mr-2 h-4 w-4" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </header>
 
