@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { 
   User, 
@@ -27,401 +28,355 @@ import {
   Target,
   Zap
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 interface UserProfile {
-  _id: string;
+  id: string;
   username: string;
   email: string;
-  phone?: string;
-  avatar?: string;
+  avatar_url?: string;
   bio?: string;
-  stats: {
-    totalGames: number;
-    totalScore: number;
-    bestScore: number;
-    wins: number;
-    averageScore: number;
-  };
-  gameStats: {
-    [key: string]: {
-      gamesPlayed: number;
-      bestScore: number;
-      averageScore: number;
-      wins: number;
-      totalScore: number;
-    };
-  };
-  friends: string[];
-  friendRequests: string[];
+  created_at: string;
+  updated_at: string;
 }
 
-interface FriendRequest {
-  _id: string;
-  from: {
-    _id: string;
-    username: string;
-    avatar?: string;
-  };
-  to: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
+interface UserStats {
+  total_games_played: number;
+  total_score: number;
+  best_score: number;
+  average_score: number;
+  games_won: number;
 }
 
 interface GameScore {
-  _id: string;
-  gameType: string;
+  id: string;
+  game_type: string;
   difficulty: string;
   score: number;
   accuracy?: number;
-  timeTaken?: number;
-  createdAt: string;
+  time_taken?: number;
+  created_at: string;
 }
 
-const fetchUserProfile = async (): Promise<UserProfile> => {
-  const response = await fetch('/api/users/profile', {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
+const fetchUserProfile = async (userId: string): Promise<{ profile: UserProfile; stats: UserStats }> => {
+  try {
+    // Fetch user profile
+    const { data: profileData, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    // Fetch user stats
+    const { data: statsData, error: statsError } = await supabase
+      .from('user_stats')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (statsError) throw statsError;
+
+    return {
+      profile: profileData,
+      stats: statsData
+    };
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    throw error;
+  }
+};
+
+const fetchGameHistory = async (userId: string, gameType?: string): Promise<GameScore[]> => {
+  try {
+    let query = supabase
+      .from('game_scores')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (gameType) {
+      query = query.eq('game_type', gameType);
     }
-  });
-  if (!response.ok) throw new Error('Failed to fetch profile');
-  return response.json();
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching game history:', error);
+    return [];
+  }
 };
 
-const fetchFriendRequests = async (): Promise<FriendRequest[]> => {
-  const response = await fetch('/api/users/friend-requests', {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
-  });
-  if (!response.ok) throw new Error('Failed to fetch friend requests');
-  return response.json();
-};
+const updateUserProfile = async (userId: string, updates: Partial<UserProfile>): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('user_profiles')
+      .update(updates)
+      .eq('id', userId);
 
-const fetchGameHistory = async (gameType?: string): Promise<GameScore[]> => {
-  const params = gameType ? `?gameType=${gameType}` : '';
-  const response = await fetch(`/api/games/history${params}`, {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
-  });
-  if (!response.ok) throw new Error('Failed to fetch game history');
-  return response.json();
-};
-
-const updateProfile = async (data: Partial<UserProfile>): Promise<UserProfile> => {
-  const response = await fetch('/api/users/profile', {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    },
-    body: JSON.stringify(data)
-  });
-  if (!response.ok) throw new Error('Failed to update profile');
-  return response.json();
-};
-
-const respondToFriendRequest = async (requestId: string, action: 'accept' | 'reject'): Promise<void> => {
-  const response = await fetch('/api/users/friend-request', {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    },
-    body: JSON.stringify({ requestId, action })
-  });
-  if (!response.ok) throw new Error('Failed to respond to friend request');
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    throw error;
+  }
 };
 
 const Profile: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     username: '',
-    bio: '',
-    phone: ''
+    bio: ''
   });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedGameType, setSelectedGameType] = useState<string>('');
 
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ['profile'],
-    queryFn: fetchUserProfile
-  });
-
-  const { data: friendRequests, isLoading: requestsLoading } = useQuery({
-    queryKey: ['friendRequests'],
-    queryFn: fetchFriendRequests
+  const { data: profileData, isLoading: profileLoading, error: profileError } = useQuery({
+    queryKey: ['userProfile', user?.id],
+    queryFn: () => fetchUserProfile(user?.id || ''),
+    enabled: !!user?.id
   });
 
   const { data: gameHistory, isLoading: historyLoading } = useQuery({
-    queryKey: ['gameHistory'],
-    queryFn: () => fetchGameHistory()
+    queryKey: ['gameHistory', user?.id, selectedGameType],
+    queryFn: () => fetchGameHistory(user?.id || '', selectedGameType),
+    enabled: !!user?.id
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: updateProfile,
-    onSuccess: (data) => {
-      updateUser(data);
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      toast.success('Profile updated successfully!');
+    mutationFn: (updates: Partial<UserProfile>) => updateUserProfile(user?.id || '', updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile', user?.id] });
       setIsEditing(false);
+      toast.success('Profile updated successfully!');
     },
     onError: (error) => {
       toast.error('Failed to update profile');
+      console.error('Profile update error:', error);
     }
   });
 
-  const friendRequestMutation = useMutation({
-    mutationFn: respondToFriendRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      toast.success('Friend request updated!');
-    },
-    onError: (error) => {
-      toast.error('Failed to update friend request');
-    }
-  });
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileData?.profile) return;
 
-  const handleEditStart = () => {
-    if (profile) {
+    const updates: Partial<UserProfile> = {};
+    if (editForm.username !== profileData.profile.username) {
+      updates.username = editForm.username;
+    }
+    if (editForm.bio !== profileData.profile.bio) {
+      updates.bio = editForm.bio;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updateProfileMutation.mutate(updates);
+    } else {
+      setIsEditing(false);
+    }
+  };
+
+  const startEditing = () => {
+    if (profileData?.profile) {
       setEditForm({
-        username: profile.username,
-        bio: profile.bio || '',
-        phone: profile.phone || ''
+        username: profileData.profile.username,
+        bio: profileData.profile.bio || ''
       });
       setIsEditing(true);
     }
   };
 
-  const handleEditSave = () => {
-    updateProfileMutation.mutate(editForm);
-  };
-
-  const handleEditCancel = () => {
+  const cancelEditing = () => {
     setIsEditing(false);
-    setEditForm({ username: '', bio: '', phone: '' });
-  };
-
-  const handleSearchUsers = async () => {
-    if (!searchQuery.trim()) return;
-    
-    try {
-      const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSearchResults(data.users || []);
-      }
-    } catch (error) {
-      toast.error('Failed to search users');
-    }
-  };
-
-  const sendFriendRequest = async (userId: string) => {
-    try {
-      const response = await fetch('/api/users/friend-request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ to: userId })
-      });
-      if (response.ok) {
-        toast.success('Friend request sent!');
-        setSearchResults([]);
-        setSearchQuery('');
-      }
-    } catch (error) {
-      toast.error('Failed to send friend request');
-    }
+    setEditForm({
+      username: profileData?.profile?.username || '',
+      bio: profileData?.profile?.bio || ''
+    });
   };
 
   if (profileLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (!profile) {
+  if (profileError || !profileData) {
     return (
-      <div className="text-center py-12">
-        <h3 className="text-lg font-medium mb-2">Profile not found</h3>
-        <p className="text-muted-foreground">Unable to load your profile information.</p>
+      <div className="text-center py-8">
+        <h2 className="text-xl font-semibold mb-2">Error Loading Profile</h2>
+        <p className="text-muted-foreground">Failed to load your profile. Please try again.</p>
       </div>
     );
   }
 
+  const { profile, stats } = profileData;
+
+  const gameTypes = [
+    { value: '', label: 'All Games' },
+    { value: 'line-drop', label: 'Line Drop' },
+    { value: 'circle-stop', label: 'Circle Stop' },
+    { value: 'gravity-tic-tac-toe', label: 'Gravity Tic-Tac-Toe' },
+    { value: 'word-sprint', label: 'Word Sprint' }
+  ];
+
+  const getGameIcon = (gameType: string) => {
+    switch (gameType) {
+      case 'line-drop': return <Target className="w-4 h-4" />;
+      case 'circle-stop': return <Target className="w-4 h-4" />;
+      case 'gravity-tic-tac-toe': return <Gamepad2 className="w-4 h-4" />;
+      case 'word-sprint': return <Zap className="w-4 h-4" />;
+      default: return <Gamepad2 className="w-4 h-4" />;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Profile Header */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-start space-x-6">
-            <Avatar className="w-24 h-24">
-              <AvatarImage src={profile.avatar} alt={profile.username} />
-              <AvatarFallback className="text-2xl">{profile.username.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            
-            <div className="flex-1 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold">{profile.username}</h1>
-                  <p className="text-muted-foreground">{profile.email}</p>
-                  {profile.phone && <p className="text-muted-foreground">{profile.phone}</p>}
-                </div>
-                
-                <div className="flex space-x-2">
-                  {!isEditing ? (
-                    <Button onClick={handleEditStart} variant="outline" size="sm">
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit Profile
-                    </Button>
-                  ) : (
-                    <>
-                      <Button onClick={handleEditSave} size="sm" disabled={updateProfileMutation.isPending}>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save
-                      </Button>
-                      <Button onClick={handleEditCancel} variant="outline" size="sm">
-                        <X className="w-4 h-4 mr-2" />
-                        Cancel
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {isEditing ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone (Optional)</Label>
-                    <Input
-                      id="phone"
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea
-                      id="bio"
-                      value={editForm.bio}
-                      onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                      placeholder="Tell us about yourself..."
-                      rows={3}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {profile.bio && <p className="text-muted-foreground">{profile.bio}</p>}
-                  {!profile.bio && <p className="text-muted-foreground italic">No bio added yet.</p>}
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Gamepad2 className="w-5 h-5 text-blue-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total Games</p>
-                <p className="text-2xl font-bold">{profile.stats.totalGames}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Trophy className="w-5 h-5 text-yellow-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Best Score</p>
-                <p className="text-2xl font-bold">{profile.stats.bestScore.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Target className="w-5 h-5 text-green-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Average Score</p>
-                <p className="text-2xl font-bold">{profile.stats.averageScore.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Zap className="w-5 h-5 text-purple-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Wins</p>
-                <p className="text-2xl font-bold">{profile.stats.wins}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Profile</h1>
+          <p className="text-muted-foreground">
+            Manage your profile and view your gaming statistics
+          </p>
+        </div>
+        <Button onClick={startEditing} disabled={isEditing}>
+          <Edit className="w-4 h-4 mr-2" />
+          Edit Profile
+        </Button>
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="games">Game Stats</TabsTrigger>
-          <TabsTrigger value="friends">Friends</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile Card */}
+        <div className="lg:col-span-1">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="relative mx-auto mb-4">
+                <Avatar className="w-24 h-24">
+                  <AvatarImage src={profile.avatar_url} alt={profile.username} />
+                  <AvatarFallback className="text-2xl">{profile.username.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              </div>
+              <CardTitle className="text-xl">{profile.username}</CardTitle>
+              <CardDescription>{profile.email}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {profile.bio && (
+                <div>
+                  <Label className="text-sm font-medium">Bio</Label>
+                  <p className="text-sm text-muted-foreground mt-1">{profile.bio}</p>
+                </div>
+              )}
+              
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Member since</p>
+                <p className="font-medium">{formatDate(profile.created_at)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <TabsContent value="overview" className="space-y-4">
+        {/* Stats and Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-primary">{stats.total_games_played}</div>
+                <p className="text-sm text-muted-foreground">Games Played</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-primary">{stats.total_score.toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Total Score</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-primary">{stats.best_score.toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Best Score</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-primary">{stats.average_score.toFixed(0)}</div>
+                <p className="text-sm text-muted-foreground">Average Score</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Game History */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
+              <CardTitle className="flex items-center space-x-2">
+                <Clock className="w-5 h-5" />
+                <span>Recent Games</span>
+              </CardTitle>
               <CardDescription>Your latest gaming achievements</CardDescription>
             </CardHeader>
             <CardContent>
-              {gameHistory && gameHistory.length > 0 ? (
+              <div className="mb-4">
+                <Select value={selectedGameType} onValueChange={setSelectedGameType}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filter by game" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gameTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {historyLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  <p className="mt-2 text-muted-foreground">Loading game history...</p>
+                </div>
+              ) : gameHistory && gameHistory.length > 0 ? (
                 <div className="space-y-3">
-                  {gameHistory.slice(0, 5).map((game) => (
-                    <div key={game._id} className="flex items-center justify-between p-3 rounded-lg border">
+                  {gameHistory.map((game) => (
+                    <div
+                      key={game.id}
+                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
                       <div className="flex items-center space-x-3">
-                        <div className="w-2 h-2 bg-primary rounded-full"></div>
+                        {getGameIcon(game.game_type)}
                         <div>
-                          <p className="font-medium capitalize">{game.gameType.replace('-', ' ')}</p>
-                          <p className="text-sm text-muted-foreground">{game.difficulty} • {game.score.toLocaleString()} pts</p>
+                          <div className="font-medium">
+                            {game.game_type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {game.difficulty.charAt(0).toUpperCase() + game.difficulty.slice(1)}
+                          </div>
                         </div>
                       </div>
+                      
                       <div className="text-right">
-                        <p className="text-sm text-muted-foreground">{new Date(game.createdAt).toLocaleDateString()}</p>
-                        {game.accuracy && <p className="text-xs text-muted-foreground">{game.accuracy.toFixed(1)}% accuracy</p>}
+                        <div className="text-lg font-bold text-primary">{game.score.toLocaleString()}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {formatDate(game.created_at)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -429,215 +384,74 @@ const Profile: React.FC = () => {
               ) : (
                 <div className="text-center py-8">
                   <Gamepad2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No games played yet. Start playing to see your activity!</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="games" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Game Performance</CardTitle>
-              <CardDescription>Detailed statistics for each game</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(profile.gameStats).map(([gameType, stats]) => (
-                  <Card key={gameType} className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium capitalize">{gameType.replace('-', ' ')}</h4>
-                        <Badge variant="secondary">{stats.gamesPlayed} games</Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Best Score:</span>
-                          <span className="font-medium">{stats.bestScore.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Average:</span>
-                          <span className="font-medium">{stats.averageScore.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Wins:</span>
-                          <span className="font-medium">{stats.wins}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="friends" className="space-y-4">
-          {/* Friend Requests */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Users className="w-5 h-5" />
-                <span>Friend Requests</span>
-                {friendRequests && friendRequests.length > 0 && (
-                  <Badge variant="secondary">{friendRequests.length}</Badge>
-                )}
-              </CardTitle>
-              <CardDescription>Manage incoming friend requests</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {requestsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                </div>
-              ) : friendRequests && friendRequests.length > 0 ? (
-                <div className="space-y-3">
-                  {friendRequests.map((request) => (
-                    <div key={request._id} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={request.from.avatar} alt={request.from.username} />
-                          <AvatarFallback>{request.from.username.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{request.from.username}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(request.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => friendRequestMutation.mutate({ requestId: request._id, action: 'accept' })}
-                          disabled={friendRequestMutation.isPending}
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          Accept
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => friendRequestMutation.mutate({ requestId: request._id, action: 'reject' })}
-                          disabled={friendRequestMutation.isPending}
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No pending friend requests</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Add Friends */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Add Friends</CardTitle>
-              <CardDescription>Search and connect with other players</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    placeholder="Search by username..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearchUsers()}
-                  />
-                  <Button onClick={handleSearchUsers}>
-                    <Search className="w-4 h-4 mr-2" />
-                    Search
+                  <h3 className="text-lg font-semibold mb-2">No Games Yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Start playing to see your game history here!
+                  </p>
+                  <Button onClick={() => window.location.href = '/games'}>
+                    Play Now
                   </Button>
                 </div>
-
-                {searchResults.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Search Results:</p>
-                    {searchResults.map((result) => (
-                      <div key={result._id} className="flex items-center justify-between p-3 rounded-lg border">
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={result.avatar} alt={result.username} />
-                            <AvatarFallback>{result.username.charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium">{result.username}</span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => sendFriendRequest(result._id)}
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Add Friend
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Game History</CardTitle>
-              <CardDescription>Your complete gaming journey</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {historyLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                </div>
-              ) : gameHistory && gameHistory.length > 0 ? (
-                <div className="space-y-3">
-                  {gameHistory.map((game) => (
-                    <div key={game._id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                          <Gamepad2 className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium capitalize">{game.gameType.replace('-', ' ')}</p>
-                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                            <Badge variant="outline">{game.difficulty}</Badge>
-                            <span>•</span>
-                            <span>{new Date(game.createdAt).toLocaleDateString()}</span>
-                            <span>•</span>
-                            <Clock className="w-3 h-3" />
-                            <span>{game.timeTaken}s</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xl font-bold text-primary">{game.score.toLocaleString()}</p>
-                        {game.accuracy && (
-                          <p className="text-sm text-muted-foreground">{game.accuracy.toFixed(1)}% accuracy</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No game history yet. Start playing to build your record!</p>
-                </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>
+              Update your profile information
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={editForm.username}
+                onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                placeholder="Enter username"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={editForm.bio}
+                onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                placeholder="Tell us about yourself"
+                rows={3}
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={cancelEditing}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateProfileMutation.isPending}>
+                {updateProfileMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

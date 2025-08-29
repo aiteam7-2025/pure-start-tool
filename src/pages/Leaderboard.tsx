@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Trophy, Medal, Star, Users, Globe, Crown } from 'lucide-react';
 
 interface LeaderboardEntry {
@@ -30,18 +31,56 @@ interface LeaderboardData {
 }
 
 const fetchLeaderboard = async (type: string, gameType?: string, difficulty?: string, period?: string, page: number = 1): Promise<LeaderboardData> => {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: '20'
-  });
-  
-  if (gameType) params.append('gameType', gameType);
-  if (difficulty) params.append('difficulty', difficulty);
-  if (period) params.append('period', period);
+  try {
+    let query = supabase
+      .from('game_scores')
+      .select(`
+        *,
+        user_profiles!inner(username, avatar_url)
+      `)
+      .order('score', { ascending: false })
+      .range((page - 1) * 20, page * 20 - 1);
 
-  const response = await fetch(`/api/leaderboard/${type}?${params}`);
-  if (!response.ok) throw new Error('Failed to fetch leaderboard');
-  return response.json();
+    if (gameType) {
+      query = query.eq('game_type', gameType);
+    }
+    
+    if (difficulty) {
+      query = query.eq('difficulty', difficulty);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+
+    const entries: LeaderboardEntry[] = (data || []).map((score, index) => ({
+      rank: (page - 1) * 20 + index + 1,
+      userId: score.user_id,
+      username: score.user_profiles?.username || 'Unknown',
+      avatar: score.user_profiles?.avatar_url,
+      score: score.score,
+      accuracy: score.accuracy,
+      timeTaken: score.time_taken,
+      gameType: score.game_type,
+      difficulty: score.difficulty,
+      isFriend: false // TODO: Implement friend system
+    }));
+
+    return {
+      entries,
+      total: count || 0,
+      page,
+      limit: 20
+    };
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    return {
+      entries: [],
+      total: 0,
+      page,
+      limit: 20
+    };
+  }
 };
 
 const getRankIcon = (rank: number) => {
@@ -100,13 +139,44 @@ const Leaderboard: React.FC = () => {
     setPage(1);
   };
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const gameTypes = [
+    { value: '', label: 'All Games' },
+    { value: 'line-drop', label: 'Line Drop' },
+    { value: 'circle-stop', label: 'Circle Stop' },
+    { value: 'gravity-tic-tac-toe', label: 'Gravity Tic-Tac-Toe' },
+    { value: 'word-sprint', label: 'Word Sprint' }
+  ];
+
+  const difficulties = [
+    { value: '', label: 'All Difficulties' },
+    { value: 'easy', label: 'Easy' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'hard', label: 'Hard' },
+    { value: 'extreme', label: 'Extreme' }
+  ];
+
+  const periods = [
+    { value: '', label: 'All Time' },
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+    { value: 'year', label: 'This Year' }
+  ];
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Leaderboards</h1>
-        <p className="text-muted-foreground">
-          Compete with players worldwide and challenge your friends to beat your scores
-        </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Leaderboard</h1>
+          <p className="text-muted-foreground">
+            Compete with players worldwide and track your progress
+          </p>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -120,204 +190,236 @@ const Leaderboard: React.FC = () => {
             <span>Friends</span>
           </TabsTrigger>
           <TabsTrigger value="overall" className="flex items-center space-x-2">
-            <Star className="w-4 h-4" />
+            <Trophy className="w-4 h-4" />
             <span>Overall</span>
           </TabsTrigger>
         </TabsList>
 
         <div className="mt-6 space-y-4">
           {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Filters</CardTitle>
-              <CardDescription>Customize your leaderboard view</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Game Type</label>
-                  <Select value={gameType} onValueChange={(value) => { setGameType(value); handleFilterChange(); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Games" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">All Games</SelectItem>
-                      <SelectItem value="line-drop">Line Drop</SelectItem>
-                      <SelectItem value="circle-stop">Circle Stop</SelectItem>
-                      <SelectItem value="gravity-tic-tac-toe">Gravity Tic-Tac-Toe</SelectItem>
-                      <SelectItem value="word-sprint">Word Sprint</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="flex flex-wrap gap-4">
+            <Select value={gameType} onValueChange={(value) => { setGameType(value); handleFilterChange(); }}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Game Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {gameTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Difficulty</label>
-                  <Select value={difficulty} onValueChange={(value) => { setDifficulty(value); handleFilterChange(); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Difficulties" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">All Difficulties</SelectItem>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                      <SelectItem value="extreme">Extreme</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <Select value={difficulty} onValueChange={(value) => { setDifficulty(value); handleFilterChange(); }}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Difficulty" />
+              </SelectTrigger>
+              <SelectContent>
+                {difficulties.map((diff) => (
+                  <SelectItem key={diff.value} value={diff.value}>
+                    {diff.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Time Period</label>
-                  <Select value={period} onValueChange={(value) => { setPeriod(value); handleFilterChange(); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">All Time</SelectItem>
-                      <SelectItem value="day">Today</SelectItem>
-                      <SelectItem value="week">This Week</SelectItem>
-                      <SelectItem value="month">This Month</SelectItem>
-                      <SelectItem value="year">This Year</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <Select value={period} onValueChange={(value) => { setPeriod(value); handleFilterChange(); }}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Time Period" />
+              </SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-                <div className="flex items-end">
-                  <Button variant="outline" onClick={resetFilters} className="w-full">
-                    Reset Filters
-                  </Button>
-                </div>
+            <Button variant="outline" onClick={resetFilters}>
+              Reset Filters
+            </Button>
+          </div>
+
+          {/* Leaderboard Content */}
+          <TabsContent value="global" className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading leaderboard...</p>
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <LeaderboardTable data={currentData} />
+            )}
+          </TabsContent>
 
-          {/* Leaderboard */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                {activeTab === 'global' && <Globe className="w-5 h-5" />}
-                {activeTab === 'friends' && <Users className="w-5 h-5" />}
-                {activeTab === 'overall' && <Star className="w-5 h-5" />}
-                <span>
-                  {activeTab === 'global' ? 'Global' : activeTab === 'friends' ? 'Friends' : 'Overall'} Leaderboard
-                </span>
-              </CardTitle>
-              <CardDescription>
-                {activeTab === 'global' && 'Top players from around the world'}
-                {activeTab === 'friends' && 'Compete with your friends'}
-                {activeTab === 'overall' && 'Best overall performance across all games'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : currentData?.entries?.length ? (
-                <div className="space-y-4">
-                  {currentData.entries.map((entry) => (
-                    <div
-                      key={`${entry.userId}-${entry.gameType}-${entry.difficulty}`}
-                      className={`flex items-center space-x-4 p-4 rounded-lg border transition-colors ${
-                        entry.userId === user?.id
-                          ? 'bg-primary/10 border-primary/20'
-                          : 'hover:bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 min-w-0 flex-1">
-                        <div className="flex items-center justify-center w-8 h-8">
-                          {getRankIcon(entry.rank)}
-                        </div>
-                        
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={entry.avatar} alt={entry.username} />
-                          <AvatarFallback>{entry.username.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center space-x-2">
-                            <p className="font-medium truncate">{entry.username}</p>
-                            {entry.isFriend && <Badge variant="secondary" className="text-xs">Friend</Badge>}
-                            {getRankBadge(entry.rank)}
-                          </div>
-                          {entry.gameType && (
-                            <p className="text-sm text-muted-foreground capitalize">
-                              {entry.gameType.replace('-', ' ')} • {entry.difficulty}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+          <TabsContent value="friends" className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading friends leaderboard...</p>
+              </div>
+            ) : (
+              <LeaderboardTable data={currentData} />
+            )}
+          </TabsContent>
 
-                      <div className="flex items-center space-x-4 text-right">
-                        {entry.accuracy && (
-                          <div>
-                            <p className="text-sm text-muted-foreground">Accuracy</p>
-                            <p className="font-medium">{entry.accuracy.toFixed(1)}%</p>
-                          </div>
-                        )}
-                        {entry.timeTaken && (
-                          <div>
-                            <p className="text-sm text-muted-foreground">Time</p>
-                            <p className="font-medium">{entry.timeTaken}s</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm text-muted-foreground">Score</p>
-                          <p className="text-xl font-bold text-primary">{entry.score.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Pagination */}
-                  {currentData.total > currentData.limit && (
-                    <div className="flex items-center justify-between pt-4 border-t">
-                      <p className="text-sm text-muted-foreground">
-                        Showing {((currentData.page - 1) * currentData.limit) + 1} to{' '}
-                        {Math.min(currentData.page * currentData.limit, currentData.total)} of {currentData.total} entries
-                      </p>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPage(page - 1)}
-                          disabled={page === 1}
-                        >
-                          Previous
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPage(page + 1)}
-                          disabled={page * currentData.limit >= currentData.total}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                    <Trophy className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-2">No scores yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {activeTab === 'friends' 
-                      ? 'Your friends haven\'t played any games yet. Invite them to join!'
-                      : 'Be the first to set a record!'
-                    }
-                  </p>
-                  <Button onClick={() => window.location.href = '/games'}>
-                    Play Now
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TabsContent value="overall" className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading overall leaderboard...</p>
+              </div>
+            ) : (
+              <LeaderboardTable data={currentData} />
+            )}
+          </TabsContent>
         </div>
       </Tabs>
+    </div>
+  );
+};
+
+interface LeaderboardTableProps {
+  data?: LeaderboardData;
+}
+
+const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ data }) => {
+  if (!data || data.entries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">No Data Available</h3>
+          <p className="text-muted-foreground">
+            No scores found for the selected criteria. Try adjusting your filters.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Top 3 Podium */}
+      {data.entries.slice(0, 3).length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {data.entries.slice(0, 3).map((entry, index) => (
+            <Card key={entry.userId} className={`text-center ${index === 0 ? 'ring-2 ring-yellow-500' : ''}`}>
+              <CardContent className="pt-6">
+                <div className="mb-4">
+                  {getRankIcon(index + 1)}
+                </div>
+                <Avatar className="w-16 h-16 mx-auto mb-3">
+                  <AvatarImage src={entry.avatar} alt={entry.username} />
+                  <AvatarFallback>{entry.username.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <h3 className="font-semibold text-lg mb-1">{entry.username}</h3>
+                <p className="text-2xl font-bold text-primary mb-2">{entry.score.toLocaleString()}</p>
+                {entry.gameType && (
+                  <Badge variant="outline" className="mb-2">
+                    {entry.gameType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </Badge>
+                )}
+                {entry.difficulty && (
+                  <Badge variant="secondary">
+                    {entry.difficulty.charAt(0).toUpperCase() + entry.difficulty.slice(1)}
+                  </Badge>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Full Leaderboard Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Leaderboard</CardTitle>
+          <CardDescription>
+            Showing {data.entries.length} of {data.total} entries
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {data.entries.map((entry) => (
+              <div
+                key={entry.userId}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    {getRankIcon(entry.rank)}
+                    <span className="font-medium text-muted-foreground">#{entry.rank}</span>
+                  </div>
+                  
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={entry.avatar} alt={entry.username} />
+                    <AvatarFallback>{entry.username.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-semibold">{entry.username}</span>
+                      {entry.isFriend && <Badge variant="outline" className="text-xs">Friend</Badge>}
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      {entry.gameType && (
+                        <span>{entry.gameType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                      )}
+                      {entry.difficulty && (
+                        <>
+                          <span>•</span>
+                          <span>{entry.difficulty.charAt(0).toUpperCase() + entry.difficulty.slice(1)}</span>
+                        </>
+                      )}
+                      {entry.accuracy && (
+                        <>
+                          <span>•</span>
+                          <span>{entry.accuracy.toFixed(1)}% accuracy</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-xl font-bold text-primary">{entry.score.toLocaleString()}</div>
+                  {getRankBadge(entry.rank)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {data.total > data.limit && (
+            <div className="flex items-center justify-center space-x-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(data.page - 1)}
+                disabled={data.page === 1}
+              >
+                Previous
+              </Button>
+              
+              <span className="text-sm text-muted-foreground">
+                Page {data.page} of {Math.ceil(data.total / data.limit)}
+              </span>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(data.page + 1)}
+                disabled={data.page >= Math.ceil(data.total / data.limit)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
