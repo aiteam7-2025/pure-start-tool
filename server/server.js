@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import gameRoutes from './routes/games.js';
 import leaderboardRoutes from './routes/leaderboard.js';
 import userRoutes from './routes/users.js';
+import airtableRoutes from './routes/airtable.js';
 
 // Import middleware
 import { authenticateToken } from './middleware/auth.js';
@@ -50,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/games', authenticateToken, gameRoutes);
 app.use('/api/leaderboard', authenticateToken, leaderboardRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/airtable', airtableRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

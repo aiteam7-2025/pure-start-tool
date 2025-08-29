@@ -14,6 +14,7 @@ import LineDrop from './pages/LineDrop';
 import CircleStop from './pages/CircleStop';
 import GravityTicTacToe from './pages/GravityTicTacToe';
 import WordSprint from './pages/WordSprint';
+import AirtableManager from './pages/AirtableManager';
 import NotFound from './pages/NotFound';
 
 // Create a client
@@ -83,6 +84,7 @@ function AppRoutes() {
           <Route path="games" element={<Games />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="airtable" element={<AirtableManager />} />
         </Route>
         
         {/* Game routes */}

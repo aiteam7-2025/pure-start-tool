@@ -35,6 +35,7 @@ import {
   Settings,
   Bell,
   Search,
+  Database,
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
@@ -49,6 +50,7 @@ const Layout: React.FC = () => {
     { name: 'Games', href: '/games', icon: Gamepad2 },
     { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
     { name: 'Profile', href: '/profile', icon: User },
+    { name: 'Airtable', href: '/airtable', icon: Database },
   ];
 
   const handleLogout = async () => {

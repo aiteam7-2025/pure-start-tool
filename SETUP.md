@@ -4,13 +4,15 @@
 
 1. **Node.js** (v16 or higher) - Download from [https://nodejs.org/](https://nodejs.org/)
 2. **MongoDB** - Install locally or use [MongoDB Atlas](https://www.mongodb.com/atlas)
+3. **Airtable Account** - Sign up at [https://airtable.com/](https://airtable.com/) (optional, for data storage)
 
 ## Quick Start
 
 ### Option 1: Windows (Easiest)
-1. Double-click `start-backend.bat` to start the backend
-2. In a new terminal, run `npm run dev` to start the frontend
-3. Open [http://localhost:5173](http://localhost:5173) in your browser
+1. **Setup Airtable**: Double-click `setup-airtable.bat` to configure Airtable credentials
+2. **Start Backend**: Double-click `start-backend.bat` to start the backend
+3. **Start Frontend**: In a new terminal, run `npm run dev` to start the frontend
+4. **Open App**: Open [http://localhost:5173](http://localhost:5173) in your browser
 
 ### Option 2: PowerShell
 1. Right-click `start-backend.ps1` and select "Run with PowerShell"
@@ -45,6 +47,12 @@ MONGODB_URI=mongodb://localhost:27017/game-platform
 JWT_SECRET=your-super-secret-jwt-key-here
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# Airtable Configuration (optional)
+AIRTABLE_API_KEY=your-airtable-api-key-here
+AIRTABLE_BASE_ID=app4gu5hfbOzwzYQA
+AIRTABLE_TABLE_ID=tbltRnV2uepgufjT2
+AIRTABLE_VIEW_ID=viwW4tu3lZHAWUpAQ
 ```
 
 ### Frontend
@@ -71,6 +79,7 @@ The frontend will automatically connect to `http://localhost:5000` for the backe
 ✅ **4 Mini-Games** - Line Drop, Circle Stop, Gravity Tic-Tac-Toe, Word Sprint
 ✅ **Leaderboards** - Global and friends rankings
 ✅ **User Profiles** - Game statistics and social features
+✅ **Airtable Integration** - External data storage and management
 ✅ **Responsive UI** - Works on desktop and mobile
 
 ## Development
