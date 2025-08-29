@@ -219,7 +219,7 @@ const Leaderboard: React.FC = () => {
                     <div
                       key={`${entry.userId}-${entry.gameType}-${entry.difficulty}`}
                       className={`flex items-center space-x-4 p-4 rounded-lg border transition-colors ${
-                        entry.userId === user?.id
+                        entry.userId === user?._id
                           ? 'bg-primary/10 border-primary/20'
                           : 'hover:bg-muted/50'
                       }`}

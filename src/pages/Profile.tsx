@@ -36,19 +36,34 @@ interface UserProfile {
   avatar?: string;
   bio?: string;
   stats: {
-    totalGames: number;
+    totalGamesPlayed: number;
     totalScore: number;
-    bestScore: number;
-    wins: number;
     averageScore: number;
+    bestScore: number;
+    gamesWon: number;
   };
   gameStats: {
-    [key: string]: {
-      gamesPlayed: number;
+    lineDrop: {
       bestScore: number;
-      averageScore: number;
-      wins: number;
+      gamesPlayed: number;
       totalScore: number;
+    };
+    circleStop: {
+      bestScore: number;
+      gamesPlayed: number;
+      totalScore: number;
+    };
+    gravityTicTacToe: {
+      bestScore: number;
+      gamesPlayed: number;
+      totalScore: number;
+      gamesWon: number;
+    };
+    wordSprint: {
+      bestScore: number;
+      gamesPlayed: number;
+      totalScore: number;
+      wordsSolved: number;
     };
   };
   friends: string[];
@@ -175,7 +190,8 @@ const Profile: React.FC = () => {
   });
 
   const friendRequestMutation = useMutation({
-    mutationFn: respondToFriendRequest,
+    mutationFn: ({ requestId, action }: { requestId: string; action: 'accept' | 'reject' }) => 
+      respondToFriendRequest(requestId, action),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
@@ -349,7 +365,7 @@ const Profile: React.FC = () => {
               <Gamepad2 className="w-5 h-5 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Total Games</p>
-                <p className="text-2xl font-bold">{profile.stats.totalGames}</p>
+                <p className="text-2xl font-bold">{profile.stats.totalGamesPlayed}</p>
               </div>
             </div>
           </CardContent>
@@ -385,7 +401,7 @@ const Profile: React.FC = () => {
               <Zap className="w-5 h-5 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Wins</p>
-                <p className="text-2xl font-bold">{profile.stats.wins}</p>
+                <p className="text-2xl font-bold">{profile.stats.gamesWon}</p>
               </div>
             </div>
           </CardContent>
@@ -456,14 +472,14 @@ const Profile: React.FC = () => {
                           <span>Best Score:</span>
                           <span className="font-medium">{stats.bestScore.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Average:</span>
-                          <span className="font-medium">{stats.averageScore.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Wins:</span>
-                          <span className="font-medium">{stats.wins}</span>
-                        </div>
+                         <div className="flex justify-between text-sm">
+                           <span>Games Played:</span>
+                           <span className="font-medium">{stats.gamesPlayed}</span>
+                         </div>
+                         <div className="flex justify-between text-sm">
+                           <span>Total Score:</span>
+                           <span className="font-medium">{stats.totalScore.toLocaleString()}</span>
+                         </div>
                       </div>
                     </div>
                   </Card>
